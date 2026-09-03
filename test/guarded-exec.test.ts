@@ -72,7 +72,9 @@ test("ALLOW is audited before exactly one execution", async () => {
   assert.deepEqual(state.executedCommands, ["pwd"])
   assert.equal(state.confirmations(), 0)
   assert.deepEqual(state.auditRecords.map((record) => record.type), ["decision", "execution_result"])
-  assert.equal((state.auditRecords[0] as DecisionAuditRecord).willExecute, true)
+  assert.equal((state.auditRecords[0] as DecisionAuditRecord).gatePassed, true)
+  assert.equal(state.auditRecords[0]?.enforcementPoint, "GUARDED_EXEC")
+  assert.equal(state.auditRecords[1]?.enforcementPoint, "GUARDED_EXEC")
 })
 
 test("DENY never asks and never reaches the runner", async () => {
@@ -196,7 +198,7 @@ test("default audit writer creates append-only JSONL with private permissions", 
   t.after(async () => await rm(directory, { recursive: true, force: true }))
   const auditPath = path.join(directory, ".command-gate", "audit.jsonl")
   const record: DecisionAuditRecord = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: "decision",
     eventId: "event-1",
     timestamp: "2026-09-03T12:00:00.000Z",
@@ -208,7 +210,8 @@ test("default audit writer creates append-only JSONL with private permissions", 
     route: "COMMAND_GATE",
     reasonCodes: ["READ_ONLY_COMMAND"],
     approval: "NOT_REQUIRED",
-    willExecute: true,
+    gatePassed: true,
+    gateAction: "EXECUTE",
   }
 
   await appendAuditRecord(auditPath, record)

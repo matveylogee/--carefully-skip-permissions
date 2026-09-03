@@ -215,7 +215,7 @@ export async function guardedExec(
   }
 
   const decisionRecord: AuditRecord = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: "decision",
     eventId,
     timestamp,
@@ -227,7 +227,9 @@ export async function guardedExec(
     route: classification.route,
     reasonCodes: classification.reasonCodes,
     approval,
-    willExecute: shouldExecute,
+    gatePassed: shouldExecute,
+    gateAction: options.dryRun ? "DRY_RUN" : shouldExecute ? "EXECUTE" : "BLOCK",
+    enforcementPoint: "GUARDED_EXEC",
   }
 
   try {
@@ -273,17 +275,19 @@ export async function guardedExec(
   const durationMs = Math.max(0, now() - startedAt)
 
   const executionRecord: AuditRecord = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: "execution_result",
     eventId,
     timestamp: new Date(now()).toISOString(),
     cwd,
     commandSha256,
     commandPreview,
+    outcome: outcome.error ? "RUNNER_ERROR" : "COMPLETED",
     exitCode: outcome.exitCode,
     signal: outcome.signal,
     durationMs,
     executionError: outcome.error,
+    enforcementPoint: "GUARDED_EXEC",
   }
 
   let auditError: string | undefined

@@ -13,13 +13,26 @@ export type ApprovalOutcome =
   | "HEADLESS_DENIED"
   | "DRY_RUN"
 
+export type GateAction = "EXECUTE" | "AUTO_APPROVE_HOST" | "REQUEST_HOST_PERMISSION" | "BLOCK" | "DRY_RUN"
+
+export type PermissionOutcome =
+  | "AUTO_APPROVAL_REQUESTED"
+  | "AUTO_APPROVED"
+  | "AUTO_APPROVAL_FAILED"
+  | "APPROVED_ONCE"
+  | "APPROVED_ALWAYS"
+  | "REJECTED"
+
 interface AuditBase {
-  schemaVersion: 1
+  schemaVersion: 2
   eventId: string
   timestamp: string
   cwd: string
   commandSha256: string
   commandPreview: string
+  enforcementPoint?: "GUARDED_EXEC" | "KILO_PLUGIN"
+  sessionID?: string
+  callID?: string
 }
 
 export interface DecisionAuditRecord extends AuditBase {
@@ -28,19 +41,32 @@ export interface DecisionAuditRecord extends AuditBase {
   effectiveDecision: Decision
   route: Route
   reasonCodes: ReasonCode[]
-  approval: ApprovalOutcome
-  willExecute: boolean
+  approval?: ApprovalOutcome
+  /** True means CommandGate handed the call to the next control; it does not claim a process started. */
+  gatePassed: boolean
+  gateAction: GateAction
+}
+
+export interface PermissionAuditRecord extends AuditBase {
+  type: "permission_result"
+  requestID: string
+  permission: string
+  outcome: PermissionOutcome
+  reply?: "once" | "always" | "reject"
+  permissionError?: string
 }
 
 export interface ExecutionAuditRecord extends AuditBase {
   type: "execution_result"
-  exitCode: number
+  /** Presence of this record means the executor returned after a real invocation. */
+  outcome: "COMPLETED" | "RUNNER_ERROR"
+  exitCode?: number
   signal?: NodeJS.Signals
-  durationMs: number
+  durationMs?: number
   executionError?: string
 }
 
-export type AuditRecord = DecisionAuditRecord | ExecutionAuditRecord
+export type AuditRecord = DecisionAuditRecord | PermissionAuditRecord | ExecutionAuditRecord
 export type AuditWriter = (auditPath: string, record: AuditRecord) => Promise<void>
 
 const SENSITIVE_OPTION = /((?:--?|\/)(?:api[-_]?key|password|secret|token|access[-_]?token|client[-_]?secret))(?:=|\s+)([^\s]+)/gi

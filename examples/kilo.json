@@ -1,0 +1,11 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "permission": {
+    "bash": {
+      "*": "ask"
+    }
+  },
+  "plugin": [
+    "file:///absolute/path/to/kilo-command-gate-prototype/src/kilo-plugin.ts"
+  ]
+}
