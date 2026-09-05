@@ -3,6 +3,7 @@ import { constants } from "node:fs"
 import { lstat, mkdir, open } from "node:fs/promises"
 import path from "node:path"
 import type { Decision, ReasonCode, Route } from "./types.ts"
+import type { InstallReport } from "./install-types.ts"
 
 export type ApprovalOutcome =
   | "NOT_REQUIRED"
@@ -45,6 +46,7 @@ export interface DecisionAuditRecord extends AuditBase {
   /** True means CommandGate handed the call to the next control; it does not claim a process started. */
   gatePassed: boolean
   gateAction: GateAction
+  installGate?: InstallReport
 }
 
 export interface PermissionAuditRecord extends AuditBase {
@@ -66,7 +68,17 @@ export interface ExecutionAuditRecord extends AuditBase {
   executionError?: string
 }
 
-export type AuditRecord = DecisionAuditRecord | PermissionAuditRecord | ExecutionAuditRecord
+export interface ReviewAuditRecord extends AuditBase {
+  type: "review_result"
+  /** Publication to the host's UI data is not proof that a person read it. */
+  outcome: "PUBLISHED_TO_HOST" | "FAILED"
+  surface: "KILO_TOOL_INPUT"
+  messageID?: string
+  partID?: string
+  reviewError?: string
+}
+
+export type AuditRecord = DecisionAuditRecord | PermissionAuditRecord | ExecutionAuditRecord | ReviewAuditRecord
 export type AuditWriter = (auditPath: string, record: AuditRecord) => Promise<void>
 
 const SENSITIVE_OPTION = /((?:--?|\/)(?:api[-_]?key|password|secret|token|access[-_]?token|client[-_]?secret))(?:=|\s+)([^\s]+)/gi

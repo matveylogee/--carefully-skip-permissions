@@ -12,6 +12,9 @@ import {
   type AuditWriter,
 } from "./audit.ts"
 import { classifyCommand } from "./policy.ts"
+import { applyInstallGate, createInstallGate, denyInstallCheck } from "./install-gate.ts"
+import { formatInstallReview } from "./install-warnings.ts"
+import type { InstallGate } from "./install-types.ts"
 import type { Classification, Mode } from "./types.ts"
 
 export type GuardStatus = "EXECUTED" | "BLOCKED" | "REJECTED" | "DRY_RUN" | "AUDIT_ERROR"
@@ -49,6 +52,7 @@ export interface GuardedExecDependencies {
   now?: () => number
   newEventId?: () => string
   environment?: NodeJS.ProcessEnv
+  installGate?: InstallGate
 }
 
 export interface GuardedExecResult {
@@ -138,6 +142,7 @@ export const confirmInTerminal: ConfirmationProvider = async (command, classific
   try {
     process.stderr.write(`\nCommand: ${JSON.stringify(command)}\n`)
     process.stderr.write(`Reasons: ${classification.reasonCodes.join(", ")}\n`)
+    if (classification.installGate) process.stderr.write(`${formatInstallReview(classification.installGate)}\n`)
     const answer = await terminal.question('Type "EXECUTE" to approve this command once: ')
     return answer === "EXECUTE" ? "APPROVED" : "REJECTED"
   } finally {
@@ -169,12 +174,13 @@ export async function guardedExec(
   const cwd = path.resolve(options.cwd ?? process.cwd())
   const mode = options.mode ?? "interactive"
   const auditPath = resolveAuditPath(cwd, options.auditPath)
-  const classification = classifyCommand(command, {
+  const installGate = dependencies.installGate ?? createInstallGate({ directory: cwd }, { environment: dependencies.environment })
+  let classification = await applyInstallGate(classifyCommand(command, {
     mode,
     cwd,
     workspaceRoot: cwd,
     sandboxed: options.sandboxed ?? false,
-  })
+  }), installGate, { mode, cwd })
   const log = dependencies.log ?? ((message: string) => console.error(message))
   const confirm = dependencies.confirm ?? confirmInTerminal
   const writeAudit = dependencies.writeAudit ?? appendAuditRecord
@@ -214,6 +220,18 @@ export async function guardedExec(
     status = "EXECUTED"
   }
 
+  if (shouldExecute && classification.installGate) {
+    let unchanged = false
+    try { unchanged = await installGate.unchanged(classification.installGate) } catch { /* fail closed */ }
+    if (!unchanged) {
+      classification = denyInstallCheck(classification, "IG_PROJECT_CHANGED")
+      approval = "POLICY_DENIED"
+      shouldExecute = false
+      status = "BLOCKED"
+      log("[InstallGate] project changed while waiting for approval; command was not executed")
+    }
+  }
+
   const decisionRecord: AuditRecord = {
     schemaVersion: 2,
     type: "decision",
@@ -230,6 +248,7 @@ export async function guardedExec(
     gatePassed: shouldExecute,
     gateAction: options.dryRun ? "DRY_RUN" : shouldExecute ? "EXECUTE" : "BLOCK",
     enforcementPoint: "GUARDED_EXEC",
+    ...(classification.installGate ? { installGate: classification.installGate } : {}),
   }
 
   try {

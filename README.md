@@ -1,4 +1,11 @@
-# Kilo CommandGate — prototype fast path
+# Kilo CommandGate + InstallGate — prototype
+
+Версия 0.6.2: исправлены временные пути тестов для macOS.
+Предупреждение InstallGate передаётся в сохранённый tool input,
+из которого Kilo 7.5.9 строит окно подтверждения. Подозрительные npm-пакеты получают ASK;
+пакетный DENY выдаётся только для известных вредоносных версий с источником подтверждения.
+Технические остановки проверки отдельно обозначаются CHECK_BLOCKED, а не malware.
+Описание нового слоя, политика и ограничения: [docs/INSTALLGATE.md](docs/INSTALLGATE.md).
 
 Детерминированный фильтр shell-команд для режима `auto`. Он работает **до**
 создания subprocess и возвращает одно из трёх решений:
@@ -43,6 +50,11 @@
   privilege escalation, secret exfiltration и policy tampering;
 - `headless` fail-closed;
 - npm-first routing в InstallGate;
+- npm InstallGate до исполнения: имена и aliases, package.json/lockfile v2–v3,
+  существование, возраст пакета/точной версии, similarity; подозрения и неполные
+  метаданные требуют ASK с понятным предупреждением;
+- небольшой проверенный список: 3 пакета / 5 конкретных вредоносных версий,
+  источники и дата проверки в аудите; это не полный live threat feed;
 - `guarded-exec`: audit-before-spawn, интерактивное подтверждение `ASK`,
   безусловная блокировка `DENY` и передача exit code subprocess;
 - приватный JSONL-аудит с редактированием типовых credentials;
@@ -50,10 +62,12 @@
   `ASK` остаётся штатному UI, `DENY` блокируется до spawn;
 - отдельный `execution_result` из `tool.execute.after`, который появляется
   только после возврата настоящего Kilo executor;
-- очистка опасных loader/interpreter environment variables перед запуском;
+- очистка опасных loader/interpreter environment variables в standalone runner;
 - ручной regression corpus из **125 размеченных команд**: 34 `ALLOW`, 59
   `ASK`, 32 `DENY` (до преобразования headless-решений);
-- 163 автоматических теста.
+- 282 автоматических теста, включая 51 regression-кейс InstallGate;
+- отдельный воспроизводимый smoke на Kilo 7.5.9 с локальными ответами модели:
+  предупреждение опубликовано до permission request, отказ не вызывает выполнение.
 
 ## Запуск
 
@@ -64,7 +78,19 @@ npm test
 npm run classify -- "git reset --hard HEAD~3"
 npm run classify -- --mode headless "curl https://example.com"
 npm run classify -- --sandboxed "npm test"
+npm run demo:install
+npm run install-check -- "npm install react@18.3.1"
+npm run install-check -- "npm install l3ft-pad"
+npm run install-check -- "npm install eslint-scope@3.7.2"
 ```
+
+`classify` — только старый быстрый слой, без сетевых проверок.
+`install-check` — полная проверка метаданных, но **никогда не выполнение команды**.
+`guard` и Kilo plugin применяют оба слоя автоматически. Demo и `npm test`
+работают офлайн на синтетических метаданных и встроенных проверенных записях,
+ничего не устанавливая. В интерактивном режиме `l3ft-pad` теперь ASK с предупреждением;
+`eslint-scope@3.7.2` — DENY по записи о вредоносной версии. Проверка через
+`install-check` никогда не запускает даже такую строку.
 
 ## Guarded execution
 
@@ -171,8 +197,10 @@ Kilo 7.5.9 объявляет прямой plugin hook `permission.ask`, но н
 }
 ```
 
-Проектное правило `bash: * → ask` важно: оно не даёт старым широким allow-rules
-обойти `ASK`. CommandGate сам снимает prompt только для точного `ALLOW`.
+Проектное правило `bash: * → ask` задаёт ожидаемый baseline подтверждений.
+Не выбирайте `Allow always`: сохранённые разрешения хоста могут подавить его
+ASK. CommandGate сам снимает prompt только для точного `ALLOW`; его жёсткий
+DENY не зависит от одноразовых или постоянных разрешений Kilo.
 
 Gate следует хранить **вне** проекта, которым управляет агент. После изменения
 конфига Kilo нужно перезапустить. Проверить итоговую конфигурацию можно так:
@@ -302,14 +330,16 @@ tree-sitter AST и обязательно обходить:
 предварительной записи audit; тесты enforcement используют подменённый executor
 и не запускают размеченные опасные команды.
 
-Он пока не доказывает безопасность неизвестных бинарников, не отслеживает
-многошаговую атаку между несколькими tool calls, не проверяет npm reputation и
-не заменяет OS sandbox. Standalone runner выполняет разрешённую команду через
+Он пока не доказывает безопасность неизвестных бинарников и не заменяет OS
+sandbox. InstallGate отслеживает изменения manifest/lockfile относительно старта
+плагина и оценивает метаданные npm, но не анализирует вредоносность кода пакета и
+не покрывает произвольные многошаговые атаки. Standalone runner выполняет разрешённую команду через
 `/bin/sh` на машине пользователя: очистка environment снижает риск, но не
 защищает от PATH hijacking или вредоносного локального binary. Поэтому это
 демонстрационный enforcement layer, а не production sandbox.
 
 Решение `ALLOW` для project execution допустимо только при настоящем sandbox.
 CLI `guard` намеренно не имеет флага `--sandboxed`; в Kilo sandboxed runner
-должен внедряться программно. npm-команды с route `INSTALL_GATE` пока требуют
-ручного approval и блокируются в headless до реализации package evidence gate.
+должен внедряться программно. npm-команды с route `INSTALL_GATE` получают
+дополнительные package evidence, но даже без флагов риска остаются `ASK` и
+блокируются в headless. Метаданные не являются разрешением на исполнение кода.

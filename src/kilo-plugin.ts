@@ -15,6 +15,10 @@ import {
   type PermissionOutcome,
 } from "./audit.ts"
 import { classifyCommand } from "./policy.ts"
+import { applyInstallGate, createInstallGate } from "./install-gate.ts"
+import { formatInstallReview } from "./install-warnings.ts"
+import { createKiloReviewPublisher, type KiloReviewPublisher, type KiloReviewReceipt } from "./kilo-review.ts"
+import type { InstallGate } from "./install-types.ts"
 import type { Classification, Mode } from "./types.ts"
 
 export interface KiloToolHookInput {
@@ -61,9 +65,11 @@ export interface KiloCommandGateDependencies {
   classify?: typeof classifyCommand
   writeAudit?: AuditWriter
   replyPermission?: PermissionReplier
+  publishReview?: KiloReviewPublisher
   now?: () => number
   newEventId?: () => string
   onBackgroundError?: (error: unknown) => void
+  installGate?: InstallGate
 }
 
 export interface KiloCommandGateHookOptions {
@@ -116,6 +122,10 @@ export class KiloCommandBlockedError extends Error {
         `effective=${classification.effectiveDecision}`,
         `route=${classification.route}`,
         `reasons=${reasons}`,
+        ...(classification.installGate ? [
+          formatInstallReview(classification.installGate),
+          ...(classification.decision === "ASK" ? ["No human approval is available in headless mode; the package is not automatically labelled malicious"] : []),
+        ] : []),
         "No process was started. Choose a read-only alternative or ask the user for a different action.",
       ].join("; "),
     )
@@ -285,6 +295,7 @@ export function createKiloCommandGatePlugin(
   const directory = path.resolve(options.directory)
   const mode = options.mode ?? detectKiloMode()
   const classify = dependencies.classify ?? classifyCommand
+  const installGate = dependencies.installGate ?? createInstallGate({ directory })
   const writeAudit = dependencies.writeAudit ?? appendAuditRecord
   const replyPermission = dependencies.replyPermission
   const now = dependencies.now ?? Date.now
@@ -344,13 +355,15 @@ export function createKiloCommandGatePlugin(
   }
 
   const before = async (input: KiloToolHookInput, output: KiloToolHookOutput): Promise<void> => {
+    // Complete the startup snapshot even before non-shell edits can change package.json.
+    await installGate.ready
     if (input.tool !== "bash") return
     pruneCalls()
 
     const args = objectArgs(output.args)
     const command = typeof args.command === "string" ? args.command : ""
     const cwd = commandCwd(directory, args)
-    const classification =
+    const commandClassification =
       command.trim() === ""
         ? malformedClassification(command)
         : classify(command, {
@@ -360,7 +373,21 @@ export function createKiloCommandGatePlugin(
             // The pre-hook cannot prove that Kilo's optional OS sandbox is active.
             sandboxed: false,
           })
-    const action = gateAction(classification)
+    const classification = await applyInstallGate(commandClassification, installGate, { mode, cwd })
+    let review: KiloReviewReceipt | undefined
+    let reviewError: string | undefined
+    if (classification.installGate && classification.effectiveDecision === "ASK") {
+      args.description = formatInstallReview(classification.installGate, 2_000)
+      try {
+        if (!dependencies.publishReview) throw new Error("Kilo review publisher is unavailable")
+        review = await dependencies.publishReview({
+          sessionID: input.sessionID, callID: input.callID, command, description: args.description as string,
+        })
+      } catch (error) {
+        reviewError = errorMessage(error)
+      }
+    }
+    const action = reviewError ? "BLOCK" : gateAction(classification)
     const passed = action !== "BLOCK"
     const approval = blockedApproval(classification)
     const record: DecisionAuditRecord = {
@@ -381,10 +408,23 @@ export function createKiloCommandGatePlugin(
       enforcementPoint: "KILO_PLUGIN",
       sessionID: input.sessionID,
       callID: input.callID,
+      ...(classification.installGate ? { installGate: classification.installGate } : {}),
     }
 
     // Fail closed: a missing decision audit prevents Kilo from reaching permission or spawn.
     await writeAudit(auditPath, record)
+    if (review || reviewError) {
+      await writeAudit(auditPath, {
+        schemaVersion: 2, type: "review_result", eventId: newEventId(), timestamp: new Date(now()).toISOString(),
+        cwd, commandSha256: record.commandSha256, commandPreview: record.commandPreview,
+        enforcementPoint: "KILO_PLUGIN", sessionID: input.sessionID, callID: input.callID,
+        surface: "KILO_TOOL_INPUT", outcome: reviewError ? "FAILED" : "PUBLISHED_TO_HOST",
+        ...(review ?? {}), ...(reviewError ? { reviewError } : {}),
+      })
+    }
+    if (reviewError) {
+      throw new Error(`[InstallGate] Could not publish the risk review to Kilo: ${reviewError}. No process was started. Restart Kilo with a compatible plugin before retrying. This is a UI integration failure, not a malware verdict.`)
+    }
     if (!passed) throw new KiloCommandBlockedError(classification)
 
     calls.set(callKey(input.sessionID, input.callID), {
@@ -545,10 +585,14 @@ export function createKiloCommandGateHook(
 }
 
 const server: Plugin = async ({ directory, client }) => {
+  const installGate = createInstallGate({ directory })
+  await installGate.ready
   const hooks = createKiloCommandGatePlugin(
     { directory, mode: detectKiloMode() },
     {
       replyPermission: createKiloPermissionReplier(client),
+      publishReview: createKiloReviewPublisher(client),
+      installGate,
     },
   )
   return hooks

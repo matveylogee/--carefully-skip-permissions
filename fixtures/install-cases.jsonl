@@ -1,0 +1,51 @@
+{"id":"install-001","command":"npm install react","expected":"ASK","reasons":["IG_NEW_DEPENDENCY","IG_UNPINNED_VERSION"]}
+{"id":"install-002","command":"npm i react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-003","command":"npm add -D @types/node@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-004","command":"npm install 'react@^1.0.0'","expected":"ASK","reasons":["IG_UNPINNED_VERSION"]}
+{"id":"install-005","command":"npm install 'react@~1.0.0'","expected":"ASK","reasons":["IG_UNPINNED_VERSION"]}
+{"id":"install-006","command":"npm install npm-alias@npm:react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-007","command":"npm exec --package=eslint@1.0.0 -- eslint --version","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-008","command":"npx --yes cowsay@1.0.0 hello","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-009","command":"npm exec eslint .","expected":"ASK","reasons":["IG_UNPINNED_VERSION"]}
+{"id":"install-010","command":"/usr/bin/env LC_ALL=C /usr/bin/npm i react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-011","command":"command npm install react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-012","command":"sh -c 'npm install react@1.0.0'","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-013","command":"npm --prefix . install react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-014","command":"npm --registry=https://registry.npmjs.org/ install react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-015","command":"npm install missing-widget","expected":"ASK","reasons":["IG_PACKAGE_NOT_FOUND"]}
+{"id":"install-016","command":"npm install offline-widget","expected":"ASK","reasons":["IG_REGISTRY_UNAVAILABLE"]}
+{"id":"install-017","command":"npm install broken-widget","expected":"ASK","reasons":["IG_METADATA_INVALID"]}
+{"id":"install-018","command":"npm install fresh-widget@1.0.0","expected":"ASK","reasons":["IG_FRESH_PACKAGE"]}
+{"id":"install-019","command":"npm install release-widget@1.0.0","expected":"ASK","reasons":["IG_FRESH_VERSION"]}
+{"id":"install-020","command":"npm install react@9.9.9","expected":"ASK","reasons":["IG_VERSION_NOT_FOUND"]}
+{"id":"install-021","command":"npm install l3ft-pad","expected":"ASK","reasons":["IG_NAME_SIMILARITY"]}
+{"id":"install-022","command":"npm i expres","expected":"ASK","reasons":["IG_NAME_SIMILARITY"]}
+{"id":"install-023","command":"npx lodahs","expected":"ASK","reasons":["IG_NAME_SIMILARITY"]}
+{"id":"install-024","command":"npm install innocent@npm:lodahs@1.0.0","expected":"ASK","reasons":["IG_NAME_SIMILARITY"]}
+{"id":"install-025","command":"npm install https://example.com/code.tgz","expected":"DENY","reasons":["IG_UNSUPPORTED_SOURCE"]}
+{"id":"install-026","command":"npm install git+https://github.com/example/repo.git","expected":"DENY","reasons":["IG_UNSUPPORTED_SOURCE"]}
+{"id":"install-027","command":"npm install ./local-package","expected":"DENY","reasons":["IG_UNSUPPORTED_SOURCE"]}
+{"id":"install-028","command":"npm install react --registry=https://example.com","expected":"DENY","reasons":["IG_CUSTOM_REGISTRY"]}
+{"id":"install-029","command":"npm install -g react","expected":"DENY","reasons":["IG_UNSUPPORTED_OPTION"]}
+{"id":"install-030","command":"npm install --workspace packages/app react","expected":"DENY","reasons":["IG_UNSUPPORTED_OPTION"]}
+{"id":"install-031","command":"npm --prefix ../elsewhere install react","expected":"DENY","reasons":["IG_PROJECT_UNVERIFIED"]}
+{"id":"install-032","command":"npm exec -c 'echo hello'","expected":"DENY","reasons":["IG_UNSUPPORTED_OPTION"]}
+{"id":"install-033","command":"npm install react && npm test","expected":"DENY","reasons":["IG_UNSUPPORTED_SHELL"]}
+{"id":"install-034","command":"cd sub && npm i react","expected":"DENY","reasons":["IG_UNSUPPORTED_SHELL"]}
+{"id":"install-035","command":"npm install $PACKAGE","expected":"DENY","reasons":["IG_UNSUPPORTED_SHELL"]}
+{"id":"install-036","command":"NPM_CONFIG_REGISTRY=https://example.com npm i react","expected":"DENY","reasons":["IG_UNSUPPORTED_SHELL"]}
+{"id":"install-037","command":"npm install 'rеact'","expected":"DENY","reasons":["IG_INVALID_PACKAGE"]}
+{"id":"install-038","command":"npm init vite@latest","expected":"DENY","reasons":["IG_UNSUPPORTED_NPM"]}
+{"id":"install-039","command":"npm rebuild","expected":"DENY","reasons":["IG_UNSUPPORTED_NPM"]}
+{"id":"install-040","command":"npm isntall react@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-041","command":"npm i deprecated-widget@1.0.0","expected":"ASK","reasons":["IG_DEPRECATED"]}
+{"id":"install-042","command":"npm install react@1.0.0 --ignore-scripts","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-043","command":"npm install react","mode":"headless","expected":"DENY","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-044","command":"git status --short","expected":"ALLOW","reasons":["READ_ONLY_GIT"]}
+{"id":"install-045","command":"echo 'npm install l3ft-pad'","expected":"ALLOW","reasons":["READ_ONLY_COMMAND"]}
+{"id":"install-046","command":"npm install @example/normal-widget@1.0.0","expected":"ASK","reasons":["IG_INSTALL_REQUIRES_APPROVAL"]}
+{"id":"install-047","command":"npm install eslint-scope@3.7.2","expected":"DENY","reasons":["IG_KNOWN_MALICIOUS"]}
+{"id":"install-048","command":"npm install innocent@npm:ua-parser-js@0.7.29","expected":"DENY","reasons":["IG_KNOWN_MALICIOUS"]}
+{"id":"install-049","command":"npm install l3ft-pad","mode":"headless","expected":"DENY","reasons":["IG_NAME_SIMILARITY"]}
+{"id":"install-050","command":"npm install fresh-widget@1.0.0","mode":"headless","expected":"DENY","reasons":["IG_FRESH_PACKAGE"]}
+{"id":"install-051","command":"npm install offline-widget","mode":"headless","expected":"DENY","reasons":["IG_REGISTRY_UNAVAILABLE"]}

@@ -1,9 +1,12 @@
+import type { InstallReasonCode, InstallReport } from "./install-types.ts"
+
 export type Decision = "ALLOW" | "ASK" | "DENY"
 export type EffectiveDecision = Decision
 export type Route = "COMMAND_GATE" | "INSTALL_GATE" | "COMPOSITE"
 export type Mode = "interactive" | "headless"
 
 export type ReasonCode =
+  | InstallReasonCode
   | "READ_ONLY_COMMAND"
   | "READ_ONLY_GIT"
   | "VERSION_QUERY"
@@ -82,4 +85,5 @@ export interface Classification {
   reasonCodes: ReasonCode[]
   findings: CommandFinding[]
   parseErrors: string[]
+  installGate?: InstallReport
 }

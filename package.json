@@ -1,12 +1,14 @@
 {
   "name": "kilo-command-gate-prototype",
-  "version": "0.4.1",
+  "version": "0.6.2",
   "private": true,
   "type": "module",
   "scripts": {
     "classify": "node src/cli.ts",
     "guard": "node src/guard-cli.ts",
-    "test": "node --test test/*.test.ts"
+    "test": "node --test test/*.test.ts",
+    "install-check": "node src/install-cli.ts",
+    "demo:install": "node scripts/install-demo.ts"
   },
   "engines": {
     "node": ">=22.18"
